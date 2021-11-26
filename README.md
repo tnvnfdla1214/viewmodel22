@@ -76,6 +76,16 @@ finish 메서드가 호출됐을 때 혹은 사용자가 직접 뒤로 가기 �
 ### gradle 추가
 
  ```Kotlin
+android {
+    .
+    .
+    dataBinding {
+        enabled true
+    }
+}
+```
+
+ ```Kotlin
 dependencies {
     def lifecycle_version = "2.3.0"
     // ViewModel
