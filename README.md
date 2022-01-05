@@ -1,6 +1,8 @@
 # viewmodel
 ViewModel은 구글이 개발자들을 위해 이 Clean Architecture를 쉽게 구현할 수 있도록 라이브러리들을 만들었는데 이를 Android Architecture Components (AAC)라고 부르며 그중 하나가 바로 ViewModel이다.
 
+절대 MVVM의 ViewModel과 AAC의 ViewModel은 다른 것이다.
+
 ViewModel은 **UI 관련 데이터를 저장하고 관리해주는 역할**이다. 예시를 들어보자.
 
 <img src="https://user-images.githubusercontent.com/48902047/142818045-250734ac-2b67-466d-9488-88d24e7b7fc8.gif"></img>
