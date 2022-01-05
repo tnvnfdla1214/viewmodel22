@@ -163,7 +163,8 @@ ViewModel과 AndroidViewModel을 상속받을 수 있는데 후자에 대한 설
 
 지금은 "아~ 화면에 보여줄 height이라는 데이터와 관리하는 로직이 뷰 모델 안에 있구나"정도만 알면 된다.
 
-### Activity
+### Activity(Lifecycle Extensions)
+외부에서 인자를 안넣어줄 필요가 없는경우 (파라미터가 없는경우)
  ```Kotlin
 class MainActivity : AppCompatActivity() {
  
@@ -275,3 +276,122 @@ class MainActivity : AppCompatActivity() {
 
 단, applicationContext는 액티비티의 생명주기가 아닌 애플리케이션의 생명주기를 가지기 때문에 참조를 해도 괜찮다. 이 경우는 뷰 모델을 만들 때 ViewModel을 상속받는 것이 아니라 AndroidViewModel을 상속받으면 된다.
 
+## 필요한곳에서 인스턴스 만들어주기
+ViewModel class 작성해준후 사용하려는 Activity나 Fragment가서 실제 객체 인스턴스를 만들어줘야하는데 그
+
+방법이 엄청나게 많다 팩토리를 이용하네 마네 어쩌구 저쩌구 일단 간단하게 보면 두가지 유형으로 나눌수있다.
+
+그냥 만들어주기 vs 생성자로 뭐 집어넣어서 view모델 생성하기 
+
+후자의 경우 ViewModelFactory를 직접 만들어줘야한다.
+
+### 외부에서 인자를 안넣어줄 필요가 없는경우 (파라미터가 없는경우)
+#### 1. Lifecycle Extensions
+이 방법은 가장 편한 방법 중 하나입니다. androidx.lifecycle의 lifecycle-extensions 모듈을 가져와 사용하면 됩니다.
+
+먼저, module 수준의 build.gradle 에 다음과 같이 디펜던시를 추가해줍니다.
+
+ ```Kotlin
+dependencies {
+    // ...
+    implementation "androidx.lifecycle:lifecycle-extensions:2.2.0"
+}
+```
+ ```Kotlin
+class MainActivity : AppCompatActivity() {
+ 
+    private lateinit var noParamViewModel: NoParamViewModel
+ 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+ 
+        /* use ViewModelProvider's constructor provided from lifecycle-extensions package */
+        noParamViewModel = ViewModelProvider(this).get(NoParamViewModel::class.java)
+    }
+}
+```
+noParamViewModel = ViewModelProvider(this).get(NoParamViewModel::class.java)
+
+요부분이 초기화 해주는건데 this는 ViewModelOwner가 들어가는거니 Activity나 Fragment가 들어가는곳입니다.
+
+Fragment에서 부모 액티비티 넣고싶으면 requireActivity()넣어주면 되겠지
+
+#### 2.ViewModelProvider.NewInstanceFactory
+한마디로 안드로이드에서 기본제공하는 팩토리를 명시해서 사용하는방법입니다.
+
+이번에 살펴볼 방법은 NewInstanceFactory 입니다.
+
+이는 안드로이드가 기본적으로 제공해주는 팩토리 클래스이며, ViewModelProvider.Factory 인터페이스를 구현하고 있습니다. 따라서 ViewModel 클래스가 파라미터를 필요로 하지 않거나, 특별히 팩토리를 커스텀 할 필요가 없는 상황에서는 1번 방법을 사용하거나, 2번 방법을 사용하면 되겠습니다.
+
+2번 방법은 1번에서 추가해준 lifecycle-extenstions 모듈을 추가하지 않아도 사용가능한 방법입니다.
+ ```Kotlin
+class MainActivity : AppCompatActivity() {
+ 
+    private lateinit var noParamViewModel: NoParamViewModel
+ 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+ 
+        noParamViewModel = ViewModelProvider(this, ViewModelProvider.NewInstanceFactory())
+            .get(NoParamViewModel::class.java)
+    }
+}
+```
+#### 3.Android KTX 사용
+[Android KTX](https://developer.android.com/kotlin/ktx)는 다양한 코틀린 확장함수들을 모아놓은 라이브러리다.
+ ```Kotlin
+//[KTX] 라이브러리 추가 
+implementation "androidx.fragment:fragment-ktx:1.3.4"
+```
+ ```Kotlin
+ //Activity, Fragment 에서의 초기
+private val mainViewModel by viewModels<MainViewModel>()
+```
+by viewModels 키워드를 사용하여 간편하게 초기화해 줄 수 있다. 위의 4가지 개념과 같은방법이다
+ ```Kotlin
+ //프래그먼트간의 데이터 공유를 위하여 액티비티에서 만들어주는경우
+private val mainViewModel by activityViewModels<MainViewModel>()
+```
+부모의 액티비티에서 뷰모델만들어서 자식 프래그먼트들끼리 공유하는경우 
+by activityViewModels 키워드를 사용해 초기화 해준다 -> ViewModelOwner에 requireActivcity()넣어서 부모에서 만들어 주는것과 같은것이다.
+### 외부에서 인자를 넣어줘야 하는 경우 (파라미터가 있는 경우)
+#### ViewModelProvider.Factory
+파라미터가 없던 ViewModelFactory의 연잔선상에서 Factory를 구현하면 파라미터를 소유하고 있는 ViewModel 객체의 인스턴스를 생성할 수 있다.
+
+직접 구현한 Factory 클래스에 파라미터를 넘겨주어 create() 내에서 인스턴스를 생성할 때 활용하면 된다.
+ ```Kotlin
+ //ViewModel
+class HasParamViewModel(val param: String) : ViewModel()
+```
+ ```Kotlin
+ //ViewModelFactory
+class HasParamViewModelFactory(private val param: String) : ViewModelProvider.Factory {
+    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+        return if (modelClass.isAssignableFrom(HasParamViewModel::class.java)) {
+            HasParamViewModel(param) as T
+        } else {
+            throw IllegalArgumentException()
+        }
+    }
+}
+```
+ ```Kotlin
+ //Activity (or Fragment)
+class MainActivity : AppCompatActivity() {
+ 
+    private lateinit var hasParamViewModel: HasParamViewModel
+ 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+ 
+        val sampleParam = "Ready Story"
+ 
+        hasParamViewModel = ViewModelProvider(this, HasParamViewModelFactory(sampleParam))
+            .get(HasParamViewModel::class.java)
+    }
+}
+```
+이렇게해서 외부에서 뭐넣어주려면 팩토리 만들어서 사용하면된다.
